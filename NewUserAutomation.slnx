@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NewUserAutomation.App/NewUserAutomation.App.csproj" />
+  <Project Path="NewUserAutomation.Core/NewUserAutomation.Core.csproj" />
+  <Project Path="NewUserAutomation.Phase1Checks/NewUserAutomation.Phase1Checks.csproj" />
+</Solution>

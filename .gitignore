@@ -1,0 +1,38 @@
+# Build output
+**/bin/
+**/obj/
+dist/
+
+# IDE/tooling
+.vs/
+.idea/
+.cursor/
+*.user
+*.suo
+
+# Runtime artifacts and logs
+artifacts/
+**/artifacts/
+*.log
+*.jsonl
+
+# Local app/customer data
+**/settings/
+**/customers/
+
+# Certificates and secrets
+*.pfx
+*.cer
+*.snk
+*.key
+*.pem
+*.env
+*.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Packaged installer binaries
+scripts/InstallerLauncher.exe
+scripts/InstallerLauncher.pdb

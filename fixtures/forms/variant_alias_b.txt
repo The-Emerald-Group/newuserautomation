@@ -1,0 +1,13 @@
+first name: Sam
+last name: Carter
+display name: Sam Carter
+username: scarter
+temporary password: Temp!7788
+email: sam.carter@emerald-group.example
+secondary email: sam.alt@emerald-group.example
+license: BUSINESS_STANDARD, BUSINESS_STANDARD, EXCHANGE_ONLINE_MAILBOX
+group access: HR ADMIN, IT SUPPORT
+shared mailbox access: hrshared@emerald-group.example, opsshared@emerald-group.example
+share point access: HR SHARED | PROJECT OPS
+special requirements: Dual monitors
+request approved by: approver@emerald-group.example

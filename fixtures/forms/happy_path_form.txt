@@ -1,0 +1,13 @@
+First Name: Jane
+Last Name: Doe
+Display Name: Jane Doe
+Preferred Username: jdoe
+Temporary Password: Temp!2345
+Primary Email: jane.doe@emerald-group.example
+Secondary Email: jane.alt@emerald-group.example
+Licenses: BUSINESS_STANDARD; EXCHANGE_PLAN2
+Group Access: HR ADMIN, FINANCE USERS
+Shared Mailbox Access: hrshared@emerald-group.example
+SharePoint Access: HR Onboarding Folder
+Special Requirements: Needs Adobe Acrobat
+Approved By: manager@emerald-group.example

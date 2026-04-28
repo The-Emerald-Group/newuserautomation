@@ -1,0 +1,13 @@
+FirstName: Alex
+Surname: Green
+Employee Name: Alex Green
+Preferred Server Login Username: agreen
+Preferred Server Password: Temp!2026
+Preferred Email Address: alex.green@emerald-group.example
+Secondary Email: alex.alt@emerald-group.example
+Licences: BUSINESS_STANDARD | EXCHANGE_ONLINE_MAILBOX
+Groups: HR ADMIN; FINANCE USERS
+Shared Mailbox: hrshared@emerald-group.example
+SharePoint Folder Access: HR SHARED, SIT ADMIN
+Any Other Requirements: Needs Adobe Acrobat
+Approved By Supervisor: manager@emerald-group.example
