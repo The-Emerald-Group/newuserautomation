@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Principal;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Forms;
 
 internal static class Program
@@ -18,10 +20,14 @@ internal sealed class InstallerForm : Form
 {
     private const string AppName = "NewUserAutomation";
     private const string AppExeName = "NewUserAutomation.App.exe";
-    private const string ZipUrl = "https://repo.emeraldcloud.co.uk/wp-content/Deployment/Emerald%20Applications/tools/NewUserAutomation-win-x64.zip";
+    private const string GitHubOwner = "The-Emerald-Group";
+    private const string GitHubRepo = "newuserautomation";
+    private const string ZipAssetName = "NewUserAutomation-win-x64.zip";
+    private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
 
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Height = 22, Dock = DockStyle.Bottom };
     private readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12), AutoEllipsis = true };
+    private readonly HttpClient _httpClient = new();
 
     public InstallerForm()
     {
@@ -58,7 +64,24 @@ internal sealed class InstallerForm : Form
             Directory.CreateDirectory(tempRoot);
             Directory.CreateDirectory(extractPath);
 
-            await DownloadWithProgressAsync(ZipUrl, zipPath);
+            UpdateStatus("Checking latest release manifest...", 8);
+            var package = await ResolvePackageAsync();
+            var installedExe = Path.Combine(currentDir, AppExeName);
+            var installedVersion = GetProductVersionSafe(installedExe);
+            if (!string.IsNullOrWhiteSpace(package.Version)
+                && string.Equals(installedVersion, package.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateStatus("Already up to date.", 100);
+                MessageBox.Show(
+                    $"NewUserAutomation is already on the latest version.\n\nVersion: {installedVersion}",
+                    "No Update Needed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                Close();
+                return;
+            }
+
+            await DownloadWithProgressAsync(package.ZipUrl, zipPath);
 
             UpdateStatus("Extracting package...", 65);
             ZipFile.ExtractToDirectory(zipPath, extractPath, overwriteFiles: true);
@@ -72,7 +95,6 @@ internal sealed class InstallerForm : Form
 
             var sourceRoot = Path.GetDirectoryName(exePathInExtract)!;
             var stagedExe = Path.Combine(sourceRoot, AppExeName);
-            var installedExe = Path.Combine(currentDir, AppExeName);
 
             if (File.Exists(installedExe) && IsSameProductVersion(installedExe, stagedExe))
             {
@@ -145,8 +167,7 @@ internal sealed class InstallerForm : Form
     {
         UpdateStatus("Downloading package...", 10);
 
-        using var client = new HttpClient();
-        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         var totalBytes = response.Content.Headers.ContentLength;
@@ -171,6 +192,28 @@ internal sealed class InstallerForm : Form
                 UpdateStatus("Downloading package...", 35);
             }
         }
+    }
+
+    private async Task<ReleasePackage> ResolvePackageAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApiUrl);
+        request.Headers.Add("User-Agent", "NewUserAutomationInstaller");
+        request.Headers.Add("Accept", "application/vnd.github+json");
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        var release = await JsonSerializer.DeserializeAsync<GitHubRelease>(stream)
+            ?? throw new InvalidOperationException("Could not parse GitHub release metadata.");
+        var zipAsset = release.Assets.FirstOrDefault(a =>
+            string.Equals(a.Name, ZipAssetName, StringComparison.OrdinalIgnoreCase));
+        if (zipAsset is null || string.IsNullOrWhiteSpace(zipAsset.BrowserDownloadUrl))
+        {
+            throw new InvalidOperationException($"Latest release is missing required asset '{ZipAssetName}'.");
+        }
+
+        var version = release.TagName?.TrimStart('v', 'V') ?? string.Empty;
+        return new ReleasePackage(zipAsset.BrowserDownloadUrl, version);
     }
 
     private void UpdateStatus(string text, int percent)
@@ -298,3 +341,13 @@ internal sealed class InstallerForm : Form
         Process.Start(psi);
     }
 }
+
+internal sealed record ReleasePackage(string ZipUrl, string Version);
+
+internal sealed record GitHubRelease(
+    [property: JsonPropertyName("tag_name")] string? TagName,
+    [property: JsonPropertyName("assets")] IReadOnlyList<GitHubAsset> Assets);
+
+internal sealed record GitHubAsset(
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("browser_download_url")] string? BrowserDownloadUrl);
