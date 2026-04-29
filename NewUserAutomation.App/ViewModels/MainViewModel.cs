@@ -42,6 +42,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _editJobTitle = string.Empty;
     private string _editPrimaryEmail = string.Empty;
     private string _editSecondaryEmail = string.Empty;
+    private string _editSecondaryEmailMode = SecondaryAliasModeOption;
     private string _editLicenseSkus = string.Empty;
     private string _editGroupAccess = string.Empty;
     private string _editSharedMailboxAccess = string.Empty;
@@ -76,6 +77,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _liveRunLogPath = string.Empty;
     private string _liveRunProgressText = "Progress: 0/0";
     private int _liveRunProgressPercent;
+    private const string SecondaryAliasModeOption = "Alias on primary user";
+    private const string SecondaryMailboxModeOption = "Separate mailbox (Exchange Online Plan 1 + delegation)";
     private readonly string _appVersion = ResolveAppVersion();
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -354,6 +357,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string EditJobTitle { get => _editJobTitle; set => Set(ref _editJobTitle, value); }
     public string EditPrimaryEmail { get => _editPrimaryEmail; set => Set(ref _editPrimaryEmail, value); }
     public string EditSecondaryEmail { get => _editSecondaryEmail; set => Set(ref _editSecondaryEmail, value); }
+    public string EditSecondaryEmailMode { get => _editSecondaryEmailMode; set => Set(ref _editSecondaryEmailMode, value); }
+    public IReadOnlyList<string> SecondaryEmailModeOptions { get; } = [SecondaryAliasModeOption, SecondaryMailboxModeOption];
     public string EditLicenseSkus { get => _editLicenseSkus; set => Set(ref _editLicenseSkus, value); }
     public string EditGroupAccess { get => _editGroupAccess; set => Set(ref _editGroupAccess, value); }
     public string EditSharedMailboxAccess { get => _editSharedMailboxAccess; set => Set(ref _editSharedMailboxAccess, value); }
@@ -1063,6 +1068,17 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         AddPreflight("Job title captured", hasJobTitle, hasJobTitle ? _currentRequest.JobTitle : "Job title missing from form.");
         var primaryEmailValid = Regex.IsMatch(_currentRequest.PrimaryEmail, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
         AddPreflight("Primary email format valid", primaryEmailValid, primaryEmailValid ? _currentRequest.PrimaryEmail : "Invalid or missing primary email.");
+        if (!string.IsNullOrWhiteSpace(_currentRequest.SecondaryEmail))
+        {
+            var secondaryValid = Regex.IsMatch(_currentRequest.SecondaryEmail, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+            AddPreflight("Secondary email format valid", secondaryValid, secondaryValid ? _currentRequest.SecondaryEmail : "Secondary email is invalid.");
+            AddPreflight(
+                "Secondary email handling mode",
+                true,
+                _currentRequest.SecondaryEmailMode == SecondaryEmailHandlingMode.SeparateMailboxWithDelegation
+                    ? "Separate mailbox + Exchange Online Plan 1 + FullAccess/SendAs delegation."
+                    : "Alias on primary mailbox.");
+        }
         if (!string.IsNullOrWhiteSpace(_currentRequest.PreferredUsername) && primaryEmailValid)
         {
             var localPart = _currentRequest.PrimaryEmail.Split('@')[0];
@@ -1765,6 +1781,10 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         return step.Command switch
         {
             "CreateUser" => await _authSession.EnsureUserExistsAsync(request),
+            "AddEmailAlias" => await _authSession.AddMailboxAliasAsync(request.Upn, step.Argument),
+            "EnsureSecondaryMailboxUser" => await _authSession.EnsureSecondaryMailboxUserAsync(request, step.Argument),
+            "AssignSecondaryMailboxLicense" => await _authSession.AssignLicenseBySkuPartNumberAsync(step.Argument, "EXCHANGE_ONLINE_MAILBOX"),
+            "GrantSecondaryMailboxDelegate" => await _authSession.GrantMailboxDelegateAccessAsync(request.Upn, step.Argument),
             "EnsurePersonalGroup" => await _authSession.EnsureSecurityGroupAsync(step.Argument),
             "CreatePersonalFolderAtRoot" => await ExecuteCreatePersonalFolderStep(step.Argument),
             "ApplyPersonalFolderPermissions" => await ExecuteApplyPersonalFolderPermissionsStep(step.Argument),
@@ -1919,6 +1939,36 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
                     $"Grant Exchange access for '{target}'",
                     "GrantExchangeAccess",
                     target)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SecondaryEmail))
+        {
+            if (request.SecondaryEmailMode == SecondaryEmailHandlingMode.AliasOnPrimaryUser)
+            {
+                steps.Add(NewLiveStep(
+                    "secondary-email-alias",
+                    $"Add secondary email alias '{request.SecondaryEmail}' to '{request.Upn}'",
+                    "AddEmailAlias",
+                    request.SecondaryEmail));
+            }
+            else
+            {
+                steps.Add(NewLiveStep(
+                    "secondary-mailbox-user",
+                    $"Create or verify mailbox user '{request.SecondaryEmail}'",
+                    "EnsureSecondaryMailboxUser",
+                    request.SecondaryEmail));
+                steps.Add(NewLiveStep(
+                    "secondary-mailbox-license",
+                    $"Assign Exchange Online Plan 1 to '{request.SecondaryEmail}'",
+                    "AssignSecondaryMailboxLicense",
+                    request.SecondaryEmail));
+                steps.Add(NewLiveStep(
+                    "secondary-mailbox-delegate",
+                    $"Grant FullAccess + SendAs on '{request.SecondaryEmail}' to '{request.Upn}'",
+                    "GrantSecondaryMailboxDelegate",
+                    request.SecondaryEmail));
+            }
         }
 
         // Deduplicate by stable Id in case of duplicate form entries.
@@ -2085,6 +2135,9 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         EditJobTitle = request.JobTitle;
         EditPrimaryEmail = request.PrimaryEmail;
         EditSecondaryEmail = request.SecondaryEmail;
+        EditSecondaryEmailMode = request.SecondaryEmailMode == SecondaryEmailHandlingMode.SeparateMailboxWithDelegation
+            ? SecondaryMailboxModeOption
+            : SecondaryAliasModeOption;
         EditLicenseSkus = string.Join("; ", request.LicenseSkus);
         EditGroupAccess = string.Join("; ", request.GroupAccess);
         EditSharedMailboxAccess = string.Join("; ", request.SharedMailboxAccess);
@@ -2108,6 +2161,9 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
             JobTitle = EditJobTitle.Trim(),
             PrimaryEmail = EditPrimaryEmail.Trim().ToLowerInvariant(),
             SecondaryEmail = EditSecondaryEmail.Trim().ToLowerInvariant(),
+            SecondaryEmailMode = string.Equals(EditSecondaryEmailMode, SecondaryMailboxModeOption, StringComparison.Ordinal)
+                ? SecondaryEmailHandlingMode.SeparateMailboxWithDelegation
+                : SecondaryEmailHandlingMode.AliasOnPrimaryUser,
             LicenseSkus = NormalizeEditList(EditLicenseSkus, forceUpperUnderscore: true),
             GroupAccess = NormalizeEditList(EditGroupAccess),
             SharedMailboxAccess = NormalizeEditList(EditSharedMailboxAccess),

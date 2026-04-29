@@ -352,6 +352,7 @@ public sealed class AuthSessionManager
             "BUSINESS_PREMIUM" => ["BUSINESS_PREMIUM", "SPB"],
             "BUSINESS_STANDARD" => ["BUSINESS_STANDARD", "O365_BUSINESS_PREMIUM"],
             "BUSINESS_BASIC" => ["BUSINESS_BASIC", "O365_BUSINESS_ESSENTIALS"],
+            "EXCHANGE_ONLINE_MAILBOX" => ["EXCHANGE_ONLINE_MAILBOX", "EXCHANGESTANDARD", "STANDARDPACK_EXCHANGE"],
             _ => [normalized]
         };
     }
@@ -502,6 +503,121 @@ public sealed class AuthSessionManager
             Success = $true
             Detail = "Exchange access processed for $($targets.Count) target(s): $applied applied, $already already present."
         } | ConvertTo-Json -Compress | Set-Content -Path '{{resultFile}}' -Encoding UTF8
+        """;
+        return await RunJsonScriptAsync(script, resultFile, stderrFile, cancellationToken);
+    }
+
+    public async Task<LiveExecutionResult> AddMailboxAliasAsync(string mailboxIdentity, string aliasEmail, CancellationToken cancellationToken = default)
+    {
+        var resultFile = Path.Combine(Path.GetTempPath(), $"newuserautomation-exec-{Guid.NewGuid():N}.json");
+        var stderrFile = Path.Combine(Path.GetTempPath(), $"newuserautomation-exec-{Guid.NewGuid():N}.err.txt");
+        var safeMailbox = mailboxIdentity.Replace("'", "''", StringComparison.Ordinal);
+        var safeAlias = aliasEmail.Replace("'", "''", StringComparison.Ordinal);
+        var script = $$"""
+        $ErrorActionPreference = 'Stop'
+        $conn = $null
+        try { $conn = Get-ConnectionInformation | Select-Object -First 1 } catch { $conn = $null }
+        if (-not $conn) {
+            Connect-ExchangeOnline -AppId '{{EscapePsLiteral(_exchangeAppId)}}' -Organization '{{EscapePsLiteral(_exchangeOrganization)}}' -CertificateThumbprint '{{EscapePsLiteral(_exchangeThumbprint)}}' -ShowBanner:$false -SkipLoadingFormatData | Out-Null
+            $conn = Get-ConnectionInformation | Select-Object -First 1
+        }
+        if (-not $conn) {
+            throw "No active Exchange session in persistent host. Reconnect Exchange from the Sign In page."
+        }
+        $mailbox = '{{safeMailbox}}'
+        $alias = '{{safeAlias}}'
+        Set-Mailbox -Identity $mailbox -EmailAddresses @{Add="smtp:$alias"} -ErrorAction Stop | Out-Null
+        [PSCustomObject]@{ Success = $true; Detail = "Alias '$alias' added to '$mailbox'." } | ConvertTo-Json -Compress | Set-Content -Path '{{resultFile}}' -Encoding UTF8
+        """;
+        return await RunJsonScriptAsync(script, resultFile, stderrFile, cancellationToken);
+    }
+
+    public async Task<LiveExecutionResult> EnsureSecondaryMailboxUserAsync(NewUserRequest primaryRequest, string secondaryEmail, CancellationToken cancellationToken = default)
+    {
+        if (_graphClient is null)
+        {
+            return new LiveExecutionResult(false, "Graph client is not connected.");
+        }
+
+        try
+        {
+            var existing = await _graphClient.Users[secondaryEmail].GetAsync(config =>
+            {
+                config.QueryParameters.Select = ["id", "userPrincipalName"];
+            }, cancellationToken);
+            if (existing is not null)
+            {
+                return new LiveExecutionResult(true, $"Secondary mailbox user already exists: {existing.UserPrincipalName ?? secondaryEmail}");
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var display = string.IsNullOrWhiteSpace(primaryRequest.DisplayName)
+                ? secondaryEmail
+                : $"{primaryRequest.DisplayName} (Secondary Mailbox)";
+            var fallbackPassword = string.IsNullOrWhiteSpace(primaryRequest.TemporaryPassword)
+                ? $"Temp!{Guid.NewGuid():N}".Substring(0, 14)
+                : primaryRequest.TemporaryPassword;
+            var mailboxUser = new Microsoft.Graph.Models.User
+            {
+                AccountEnabled = true,
+                DisplayName = display,
+                GivenName = primaryRequest.FirstName,
+                Surname = primaryRequest.LastName,
+                UserPrincipalName = secondaryEmail,
+                MailNickname = BuildMailNickname(secondaryEmail),
+                UsageLocation = "GB",
+                PasswordProfile = new Microsoft.Graph.Models.PasswordProfile
+                {
+                    Password = fallbackPassword,
+                    ForceChangePasswordNextSignIn = false
+                }
+            };
+            var created = await _graphClient.Users.PostAsync(mailboxUser, cancellationToken: cancellationToken);
+            return new LiveExecutionResult(true, $"Created secondary mailbox user {created?.UserPrincipalName ?? secondaryEmail}.");
+        }
+        catch (Exception ex)
+        {
+            return new LiveExecutionResult(false, $"Create secondary mailbox user failed: {Simplify(ex.Message)}");
+        }
+    }
+
+    public async Task<LiveExecutionResult> GrantMailboxDelegateAccessAsync(string delegateUserUpn, string mailboxIdentity, CancellationToken cancellationToken = default)
+    {
+        var resultFile = Path.Combine(Path.GetTempPath(), $"newuserautomation-exec-{Guid.NewGuid():N}.json");
+        var stderrFile = Path.Combine(Path.GetTempPath(), $"newuserautomation-exec-{Guid.NewGuid():N}.err.txt");
+        var safeDelegate = delegateUserUpn.Replace("'", "''", StringComparison.Ordinal);
+        var safeMailbox = mailboxIdentity.Replace("'", "''", StringComparison.Ordinal);
+        var script = $$"""
+        $ErrorActionPreference = 'Stop'
+        $conn = $null
+        try { $conn = Get-ConnectionInformation | Select-Object -First 1 } catch { $conn = $null }
+        if (-not $conn) {
+            Connect-ExchangeOnline -AppId '{{EscapePsLiteral(_exchangeAppId)}}' -Organization '{{EscapePsLiteral(_exchangeOrganization)}}' -CertificateThumbprint '{{EscapePsLiteral(_exchangeThumbprint)}}' -ShowBanner:$false -SkipLoadingFormatData | Out-Null
+            $conn = Get-ConnectionInformation | Select-Object -First 1
+        }
+        if (-not $conn) {
+            throw "No active Exchange session in persistent host. Reconnect Exchange from the Sign In page."
+        }
+        $delegateUser = '{{safeDelegate}}'
+        $mailbox = '{{safeMailbox}}'
+        try {
+            Add-MailboxPermission -Identity $mailbox -User $delegateUser -AccessRights FullAccess -InheritanceType All -AutoMapping:$false -ErrorAction Stop | Out-Null
+        } catch {
+            $msg = $_.Exception.Message
+            if ($msg -notmatch 'already' -and $msg -notmatch 'exists') { throw }
+        }
+        try {
+            Add-RecipientPermission -Identity $mailbox -Trustee $delegateUser -AccessRights SendAs -Confirm:$false -ErrorAction Stop | Out-Null
+        } catch {
+            $msg = $_.Exception.Message
+            if ($msg -notmatch 'already' -and $msg -notmatch 'exists') { throw }
+        }
+        [PSCustomObject]@{ Success = $true; Detail = "Granted FullAccess + SendAs on '$mailbox' to '$delegateUser'." } | ConvertTo-Json -Compress | Set-Content -Path '{{resultFile}}' -Encoding UTF8
         """;
         return await RunJsonScriptAsync(script, resultFile, stderrFile, cancellationToken);
     }

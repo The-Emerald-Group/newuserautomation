@@ -38,6 +38,7 @@ public sealed class FormParser
         new("JobTitle", false, "job title", "jobtitle", "position", "role title"),
         new("PrimaryEmail", true, "primary email", "preferred email address", "email"),
         new("SecondaryEmail", false, "secondary email"),
+        new("SecondaryEmailMode", false, "secondary email mode", "secondary mailbox mode"),
         new("LicenseSkus", false, "licenses", "licences", "license"),
         new("GroupAccess", false, "group access", "groups"),
         new("SharedMailboxAccess", false, "shared mailbox access", "shared mailbox"),
@@ -112,6 +113,7 @@ public sealed class FormParser
             JobTitle = Read(map, "JobTitle"),
             PrimaryEmail = primaryEmail,
             SecondaryEmail = Read(map, "SecondaryEmail").ToLowerInvariant(),
+            SecondaryEmailMode = ParseSecondaryEmailMode(Read(map, "SecondaryEmailMode")),
             LicenseSkus = licenseSkus,
             GroupAccess = FieldNormalizer.NormalizeList(Read(map, "GroupAccess")),
             SharedMailboxAccess = FieldNormalizer.NormalizeList(Read(map, "SharedMailboxAccess")),
@@ -201,6 +203,7 @@ public sealed class FormParser
             JobTitle = FieldNormalizer.NormalizeScalar(jobTitle),
             PrimaryEmail = FieldNormalizer.NormalizeScalar(primaryEmail).ToLowerInvariant(),
             SecondaryEmail = FieldNormalizer.NormalizeScalar(secondaryEmail).ToLowerInvariant(),
+            SecondaryEmailMode = SecondaryEmailHandlingMode.AliasOnPrimaryUser,
             LicenseSkus = licenseSkus,
             GroupAccess = [],
             SharedMailboxAccess = sharedMailboxes,
@@ -550,6 +553,19 @@ public sealed class FormParser
         }
 
         return normalized;
+    }
+
+    private static SecondaryEmailHandlingMode ParseSecondaryEmailMode(string raw)
+    {
+        var normalized = FieldNormalizer.NormalizeScalar(raw).Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        return normalized switch
+        {
+            "SEPARATEMAILBOXWITHDELEGATION" => SecondaryEmailHandlingMode.SeparateMailboxWithDelegation,
+            "SEPARATEMAILBOX" => SecondaryEmailHandlingMode.SeparateMailboxWithDelegation,
+            "SEPARATE" => SecondaryEmailHandlingMode.SeparateMailboxWithDelegation,
+            "MAILBOX" => SecondaryEmailHandlingMode.SeparateMailboxWithDelegation,
+            _ => SecondaryEmailHandlingMode.AliasOnPrimaryUser
+        };
     }
 
     private static IEnumerable<string> BuildContractDiagnostics(

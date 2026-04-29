@@ -12,6 +12,7 @@ public sealed class NewUserRequest
     public string JobTitle { get; init; } = string.Empty;
     public string PrimaryEmail { get; init; } = string.Empty;
     public string SecondaryEmail { get; init; } = string.Empty;
+    public SecondaryEmailHandlingMode SecondaryEmailMode { get; init; } = SecondaryEmailHandlingMode.AliasOnPrimaryUser;
     public List<string> LicenseSkus { get; init; } = [];
     public List<string> GroupAccess { get; init; } = [];
     public List<string> SharedMailboxAccess { get; init; } = [];
@@ -48,4 +49,10 @@ public sealed class NewUserRequest
             return $"{PreferredUsername.Trim().ToLowerInvariant()}@{domain.Trim().ToLowerInvariant()}";
         }
     }
+}
+
+public enum SecondaryEmailHandlingMode
+{
+    AliasOnPrimaryUser = 0,
+    SeparateMailboxWithDelegation = 1
 }

@@ -418,6 +418,12 @@
                                         <TextBox Height="28" Text="{Binding EditSecondaryEmail, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
                                     <StackPanel Margin="0,0,12,6">
+                                        <TextBlock Text="Secondary Email Handling" />
+                                        <ComboBox Height="28"
+                                                  ItemsSource="{Binding SecondaryEmailModeOptions}"
+                                                  SelectedItem="{Binding EditSecondaryEmailMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,12,6">
                                         <TextBlock Text="Licenses (; separated)" />
                                         <TextBox Height="28" Text="{Binding EditLicenseSkus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>

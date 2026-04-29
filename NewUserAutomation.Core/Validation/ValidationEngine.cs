@@ -21,6 +21,10 @@ public sealed class ValidationEngine
         {
             errors.Add("PrimaryEmail must be a valid email address.");
         }
+        if (!string.IsNullOrWhiteSpace(request.SecondaryEmail) && !EmailRegex.IsMatch(request.SecondaryEmail))
+        {
+            errors.Add("SecondaryEmail must be a valid email address when provided.");
+        }
 
         if (request.LicenseSkus.Count == 0)
         {

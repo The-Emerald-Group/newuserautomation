@@ -36,6 +36,20 @@ public sealed class DryRunPlanner
             steps.Add(new("Mailboxes.GrantAccess", $"Grant access to Exchange target (shared mailbox/group/distribution list): {mailbox}"));
         }
 
+        if (!string.IsNullOrWhiteSpace(request.SecondaryEmail))
+        {
+            if (request.SecondaryEmailMode == SecondaryEmailHandlingMode.AliasOnPrimaryUser)
+            {
+                steps.Add(new("Mailboxes.ConfigureSecondaryEmail", $"Add secondary email '{request.SecondaryEmail}' as alias on '{request.Upn}'."));
+            }
+            else
+            {
+                steps.Add(new("Mailboxes.ConfigureSecondaryEmail", $"Create separate mailbox user '{request.SecondaryEmail}' (Exchange Online Plan 1)."));
+                steps.Add(new("Licenses.AssignLicense", $"Assign secondary mailbox license EXCHANGE_ONLINE_MAILBOX to '{request.SecondaryEmail}'."));
+                steps.Add(new("Mailboxes.GrantAccess", $"Grant FullAccess and SendAs on '{request.SecondaryEmail}' to '{request.Upn}'."));
+            }
+        }
+
         foreach (var access in request.SharePointAccess.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
             steps.Add(new("SharePoint.GrantAccess", $"Grant SharePoint access: {access}"));
