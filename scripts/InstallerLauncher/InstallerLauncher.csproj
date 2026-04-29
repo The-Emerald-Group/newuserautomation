@@ -6,5 +6,6 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>NewUserAutomationInstaller</AssemblyName>
+    <ApplicationIcon>Assets\installer-icon.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

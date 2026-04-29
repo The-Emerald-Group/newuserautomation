@@ -5,31 +5,61 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:NewUserAutomation.App"
         mc:Ignorable="d"
-        Title="New User Automation" Height="620" Width="1000" Background="#12161C">
+        Title="New User Automation" Height="620" Width="1000" Background="#0C1220" Icon="Assets/app-icon.png" FontFamily="Segoe UI Variable Text">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="#DCE6F2" />
         </Style>
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#2A3442" />
-            <Setter Property="Foreground" Value="#EAF2FC" />
-            <Setter Property="BorderBrush" Value="#3B4B5E" />
+            <Setter Property="Background" Value="#1F2A3A" />
+            <Setter Property="Foreground" Value="#ECF4FF" />
+            <Setter Property="BorderBrush" Value="#33465F" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                CornerRadius="8"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#29405D" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#4B6F97" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#20344C" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#6E98C7" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#313B4A" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#47566B" />
+                                <Setter Property="Foreground" Value="#C2D0E0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#344356" />
-                    <Setter Property="BorderBrush" Value="#4E627A" />
+                    <Setter Property="Background" Value="#29405D" />
+                    <Setter Property="BorderBrush" Value="#4B6F97" />
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#243140" />
-                    <Setter Property="BorderBrush" Value="#5B789C" />
+                    <Setter Property="Background" Value="#20344C" />
+                    <Setter Property="BorderBrush" Value="#6E98C7" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="1" />
-                    <Setter Property="Foreground" Value="#D6E0EE" />
-                    <Setter Property="Background" Value="#3A4350" />
-                    <Setter Property="BorderBrush" Value="#576579" />
+                    <Setter Property="Foreground" Value="#C2D0E0" />
+                    <Setter Property="Background" Value="#313B4A" />
+                    <Setter Property="BorderBrush" Value="#47566B" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -87,14 +117,20 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#172435" CornerRadius="10" Padding="16" Margin="0,0,0,16">
+        <Border Grid.Row="0" Background="#131E30" CornerRadius="14" Padding="18" Margin="0,0,0,16">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.25" Color="#000000" />
+            </Border.Effect>
             <StackPanel>
                 <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="White" Text="New User Automation" />
                 <TextBlock Margin="0,6,0,0" Foreground="#C8D6E8" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Background="#1A2028" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="18">
+        <Border Grid.Row="1" Background="#111A29" BorderBrush="#2C425E" BorderThickness="1" CornerRadius="14" Padding="18">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.30" Color="#000000" />
+            </Border.Effect>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Grid>
                 <Grid Visibility="{Binding IsSignInStep, Converter={StaticResource BoolToVisibilityConverter}}">
