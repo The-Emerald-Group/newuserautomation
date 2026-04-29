@@ -13,6 +13,10 @@ Desktop tool for new user onboarding workflows (Graph, Exchange, SharePoint), wi
 
 ## Install for end users (EXE installer)
 
+Latest release downloads:
+- Release page: [Latest Release](https://github.com/The-Emerald-Group/newuserautomation/releases/latest)
+- Direct installer EXE: [NewUserAutomationInstaller.exe](https://github.com/The-Emerald-Group/newuserautomation/releases/latest/download/NewUserAutomationInstaller.exe)
+
 1. Download `NewUserAutomationInstaller.exe`.
 2. Run the EXE (double-click or right-click Run as administrator if needed).
 3. The installer calls GitHub Releases `latest` for this repo.
