@@ -64,41 +64,49 @@
             </Style.Triggers>
         </Style>
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#10161D" />
+            <Setter Property="Background" Value="#0E1624" />
             <Setter Property="Foreground" Value="#EAF2FC" />
-            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderBrush" Value="#395271" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,5" />
             <Setter Property="CaretBrush" Value="#EAF2FC" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Style.Triggers>
                 <Trigger Property="IsReadOnly" Value="True">
-                    <Setter Property="Background" Value="#0E141B" />
+                    <Setter Property="Background" Value="#0C1320" />
                     <Setter Property="Foreground" Value="#D3DEEA" />
+                    <Setter Property="BorderBrush" Value="#2F4663" />
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#10161D" />
+            <Setter Property="Background" Value="#0E1624" />
             <Setter Property="Foreground" Value="#EAF2FC" />
-            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderBrush" Value="#395271" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,4" />
         </Style>
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="#10161D" />
+            <Setter Property="Background" Value="#0E1624" />
             <Setter Property="Foreground" Value="#EAF2FC" />
-            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Padding" Value="8,4" />
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#1E2A38" />
+                    <Setter Property="Background" Value="#1F334A" />
                     <Setter Property="Foreground" Value="#FFFFFF" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#2B6CB0" />
+                    <Setter Property="Background" Value="#2F6CB3" />
                     <Setter Property="Foreground" Value="#FFFFFF" />
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="ListBox">
-            <Setter Property="Background" Value="#10161D" />
+            <Setter Property="Background" Value="#0E1624" />
             <Setter Property="Foreground" Value="#EAF2FC" />
-            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="BorderBrush" Value="#395271" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
         </Style>
         <Style TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="#EAF2FC" />
@@ -136,7 +144,7 @@
                 <Grid Visibility="{Binding IsSignInStep, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel HorizontalAlignment="Stretch">
                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="#8BB9FF" Text="Step 1: Select Customer and Sign In" />
-                        <TextBlock Margin="0,6,0,8" Foreground="#C3CFDD" Text="One-app flow: 1) Select/create customer, 2) Enter tenant + site details, 3) Set Up Customer App (one-time), 4) Save Customer, 5) Connect All, 6) Continue." TextWrapping="Wrap" />
+                        <TextBlock Margin="0,6,0,8" Foreground="#C3CFDD" Text="Daily flow: select customer and use Connect All. Enter Edit mode only when you need to change settings, run one-time setup, or save profile updates." TextWrapping="Wrap" />
                         <Grid Margin="0,0,0,4" HorizontalAlignment="Left">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="110" />
@@ -175,8 +183,7 @@
                             <Button Grid.Column="2" Height="30" Margin="8,0,0,0" Content="New" Command="{Binding NewCustomerCommand}" />
                             <Button Grid.Column="3" Height="30" Margin="8,0,0,0" Content="Delete" Command="{Binding DeleteCustomerCommand}" />
                             <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="8,0,0,0">
-                                <Button Width="108" Height="30" Content="{Binding CustomerEditButtonText}" Command="{Binding EditCustomerCommand}" />
-                                <Button Width="104" Height="30" Margin="6,0,0,0" Content="Save Customer" Command="{Binding SaveCustomerCommand}" />
+                                <Button Width="120" Height="30" Content="{Binding CustomerEditButtonText}" Command="{Binding EditCustomerCommand}" />
                             </StackPanel>
                         </Grid>
                         <TextBlock Margin="0,0,0,8" Foreground="#A9B7C9" FontStyle="Italic" Text="{Binding CustomerEditStatus}" />
@@ -227,16 +234,60 @@
                             </Grid.RowDefinitions>
 
                             <WrapPanel Grid.Row="0" Margin="0,0,0,0" Orientation="Horizontal">
-                                <Button Width="220" Height="34" Background="#2F6CB3" Foreground="White" BorderBrush="#2F6CB3" Content="1) Set Up Customer App (One-Time)" Command="{Binding SetupCustomerAppCommand}" />
-                                <Button Width="26" Height="34" Margin="6,0,0,0" Content="?" ToolTip="One-app setup help" Command="{Binding ShowExchangeSetupHelpCommand}" />
-                                <Button Width="130" Height="34" Margin="6,0,0,0" Content="2) Save Customer" Command="{Binding SaveCustomerCommand}" />
-                                <Button Width="160" Height="34" Margin="6,0,0,0" Background="#2F6CB3" Foreground="White" BorderBrush="#2F6CB3" Content="3) Connect All (One App)" Command="{Binding QuickConnectCommand}" />
+                                <Button Width="220" Height="34" Background="#2F6CB3" Foreground="White" BorderBrush="#2F6CB3" Content="Set Up Customer App (One-Time)" Command="{Binding SetupCustomerAppCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCustomerEditLocked}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Width="26" Height="34" Margin="6,0,0,0" Content="?" ToolTip="One-app setup help" Command="{Binding ShowExchangeSetupHelpCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCustomerEditLocked}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Width="130" Height="34" Margin="6,0,0,0" Content="Save Customer" Command="{Binding SaveCustomerCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCustomerEditLocked}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Width="180" Height="34" Margin="6,0,0,0" Background="#2F6CB3" Foreground="White" BorderBrush="#2F6CB3" Content="Connect All (One App)" Command="{Binding QuickConnectCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCustomerEditLocked}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </WrapPanel>
 
                             <TextBlock Grid.Row="1"
                                        Margin="0,8,0,0"
                                        Foreground="#C3CFDD"
-                                       Text="One App: Run one-time setup once per customer, then use Connect All for daily use."
+                                       Text="View mode shows Connect All for daily use. Enter edit mode to update customer settings, run one-time setup, and save changes."
                                        TextWrapping="Wrap" />
 
                             <TextBlock Grid.Row="2" Margin="0,12,0,0" FontWeight="SemiBold" Text="Connection status" />
@@ -671,7 +722,10 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#A9B7C9" Text="Step 3 validates and preflights. Step 4 executes live actions with checkpoints." />
+            <StackPanel Grid.Column="0" Orientation="Vertical">
+                <TextBlock VerticalAlignment="Center" Foreground="#A9B7C9" Text="Step 3 validates and preflights. Step 4 executes live actions with checkpoints." />
+                <TextBlock Margin="0,4,0,0" Foreground="#8FA9C8" FontSize="12" Text="{Binding AppVersionLabel}" />
+            </StackPanel>
             <Button Grid.Column="1" Width="130" Height="30" Margin="10,0,0,0" Content="Back to Start" Command="{Binding BackToStartCommand}" />
             <Button Grid.Column="2" Width="110" Height="30" Margin="10,0,0,0" Content="Close App" Command="{Binding CloseApplicationCommand}" />
         </Grid>

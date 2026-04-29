@@ -24,6 +24,7 @@ internal sealed class InstallerForm : Form
     private const string GitHubRepo = "newuserautomation";
     private const string ZipAssetName = "NewUserAutomation-win-x64.zip";
     private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
+    private readonly string _installerVersion = ResolveInstallerVersion();
 
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Height = 22, Dock = DockStyle.Bottom };
     private readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12), AutoEllipsis = true };
@@ -31,7 +32,7 @@ internal sealed class InstallerForm : Form
 
     public InstallerForm()
     {
-        Text = "Installing NewUserAutomation";
+        Text = $"Installing NewUserAutomation (Installer {_installerVersion})";
         Width = 560;
         Height = 140;
         StartPosition = FormStartPosition.CenterScreen;
@@ -68,6 +69,10 @@ internal sealed class InstallerForm : Form
             var package = await ResolvePackageAsync();
             var installedExe = Path.Combine(currentDir, AppExeName);
             var installedVersion = GetProductVersionSafe(installedExe);
+            if (!string.IsNullOrWhiteSpace(package.Version))
+            {
+                UpdateStatus($"Installed version: {DisplayVersion(installedVersion)} | Latest release: {package.Version}", 9);
+            }
             if (!string.IsNullOrWhiteSpace(package.Version)
                 && string.Equals(installedVersion, package.Version, StringComparison.OrdinalIgnoreCase))
             {
@@ -295,6 +300,22 @@ internal sealed class InstallerForm : Form
             return string.Empty;
         }
     }
+
+    private static string ResolveInstallerVersion()
+    {
+        try
+        {
+            var version = FileVersionInfo.GetVersionInfo(Environment.ProcessPath ?? string.Empty).ProductVersion;
+            return string.IsNullOrWhiteSpace(version) ? "unknown" : version;
+        }
+        catch
+        {
+            return "unknown";
+        }
+    }
+
+    private static string DisplayVersion(string version) =>
+        string.IsNullOrWhiteSpace(version) ? "not installed" : version;
 
     private static void CreateShortcut(string shortcutPath, string targetPath, string workingDirectory)
     {

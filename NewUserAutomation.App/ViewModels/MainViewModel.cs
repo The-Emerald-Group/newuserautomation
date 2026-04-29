@@ -76,6 +76,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _liveRunLogPath = string.Empty;
     private string _liveRunProgressText = "Progress: 0/0";
     private int _liveRunProgressPercent;
+    private readonly string _appVersion = ResolveAppVersion();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -395,6 +396,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _liveRunProgressPercent;
         private set => Set(ref _liveRunProgressPercent, value);
     }
+    public string AppVersionLabel => $"App version: {_appVersion}";
     public bool ShowParserDiagnosticsDetails
     {
         get => _showParserDiagnosticsDetails;
@@ -668,7 +670,7 @@ Full guide:
     {
         if (IsAuthBusy) return;
         IsAuthBusy = true;
-        SignInPhaseMessage = "Setting up one-time customer app...";
+        SignInPhaseMessage = "[RUNNING] Setting up one-time customer app...";
         try
         {
             var safeCustomer = string.IsNullOrWhiteSpace(CustomerName)
@@ -691,7 +693,7 @@ Full guide:
                 progress: new Progress<string>(phase => SignInPhaseMessage = phase));
             if (!certResult.Success)
             {
-                StatusMessage = $"Customer app setup failed during certificate generation: {Compact(certResult.ErrorMessage)}";
+                ReportActionableSetupFailure($"Certificate generation failed. {certResult.ErrorMessage}");
                 return;
             }
 
@@ -707,7 +709,7 @@ Full guide:
                 progress: new Progress<string>(phase => SignInPhaseMessage = phase));
             if (!setup.Success)
             {
-                StatusMessage = $"Customer app setup failed: {Compact(setup.ErrorMessage)}";
+                ReportActionableSetupFailure(setup.ErrorMessage);
                 return;
             }
 
@@ -751,7 +753,11 @@ Full guide:
             StatusMessage = string.IsNullOrWhiteSpace(setup.ErrorMessage)
                 ? $"Customer app setup complete. Next: Save Customer, then Connect All.{sitePermissionDetail}"
                 : $"Customer app setup complete with warning: {Compact(setup.ErrorMessage)}";
-            SignInPhaseMessage = "Customer app setup complete";
+            SignInPhaseMessage = "[COMPLETED] Customer app setup complete";
+        }
+        catch (Exception ex)
+        {
+            ReportActionableSetupFailure(ex.Message);
         }
         finally
         {
@@ -1386,7 +1392,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
     {
         if (_currentRequest is null)
         {
-            LiveRunStatus = "No parsed request available.";
+            LiveRunStatus = "[FAILED] No parsed request available.";
             return;
         }
 
@@ -1394,12 +1400,12 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         var report = _validation.Validate(editedRequest);
         if (!report.IsValid)
         {
-            LiveRunStatus = $"Live run blocked: {string.Join(" | ", report.Errors)}";
+            LiveRunStatus = $"[FAILED] Live run blocked: {string.Join(" | ", report.Errors)}";
             return;
         }
         if (PreflightChecks.Count == 0 || PreflightChecks.Any(check => !check.IsPass))
         {
-            LiveRunStatus = "Run preflight first and resolve all failures before safe live execution.";
+            LiveRunStatus = "[FAILED] Run preflight first and resolve all failures before safe live execution.";
             return;
         }
 
@@ -1432,7 +1438,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         SaveLiveRunState();
         LiveRunLogPath = GetLiveRunLogPath(_liveRunState.UserUpn);
         LogLiveRunEvent("LiveRunStarted", null, "Safe live run initialized or resumed.");
-        LiveRunStatus = "Safe live run ready. Use 'Run Next Live Step' or 'Run All Remaining Steps'.";
+        LiveRunStatus = "[READY] Safe live run initialized. Use 'Run Next Live Step' or 'Run All Remaining Steps'.";
         UpdateLiveRunProgress();
     }
 
@@ -1440,7 +1446,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
     {
         if (_currentRequest is null)
         {
-            LiveRunStatus = "No parsed request available.";
+            LiveRunStatus = "[FAILED] No parsed request available.";
             return;
         }
 
@@ -1456,7 +1462,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         var nextStep = _liveRunState.Steps.FirstOrDefault(step => !step.IsCompleted);
         if (nextStep is null)
         {
-            LiveRunStatus = "Live run complete. All steps finished.";
+            LiveRunStatus = "[COMPLETED] Live run complete. All steps finished.";
             return;
         }
 
@@ -1469,12 +1475,12 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
             MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
-            LiveRunStatus = "Live run paused by operator.";
+            LiveRunStatus = "[PAUSED] Live run paused by operator.";
             return;
         }
 
         IsAuthBusy = true;
-        SignInPhaseMessage = $"Running live step: {nextStep.Description}";
+        SignInPhaseMessage = $"[RUNNING] Live step: {nextStep.Description}";
         try
         {
             nextStep.Status = "InProgress";
@@ -1493,21 +1499,22 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
 
             if (result.Success)
             {
-                LiveRunStatus = $"Step completed: {nextStep.Description}";
+                LiveRunStatus = $"[COMPLETED] Step completed: {nextStep.Description}";
                 var remaining = _liveRunState.Steps.Count(step => !step.IsCompleted);
                 if (remaining == 0)
                 {
                     var skipped = _liveRunState.Steps.Count(step => string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase));
                     LiveRunStatus = skipped > 0
-                        ? $"Live run complete with {skipped} skipped step(s). Review skipped items before sign-off."
-                        : "Live run complete. All steps finished.";
+                        ? $"[COMPLETED] Live run complete with {skipped} skipped step(s). Review skipped items before sign-off."
+                        : "[COMPLETED] Live run complete. All steps finished.";
                 }
             }
             else
             {
-                LiveRunStatus = $"Step failed: {nextStep.Description}. {result.Detail}";
+                var actionable = BuildLiveRunFailureDetail(result.Detail);
+                LiveRunStatus = $"[FAILED] Step failed: {nextStep.Description}. {actionable}";
                 MessageBox.Show(
-                    $"Step failed and the live run has stopped.\n\n{nextStep.Description}\n\n{result.Detail}\n\nFix the issue, then click 'Run Next Live Step' to resume.",
+                    $"Step failed and the live run has stopped.\n\n{nextStep.Description}\n\n{actionable}\n\nFix the issue, then click 'Run Next Live Step' to retry this failed step.",
                     "Live Run Stopped",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -1531,7 +1538,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         var nextStep = _liveRunState.Steps.FirstOrDefault(step => !step.IsCompleted);
         if (nextStep is null)
         {
-            LiveRunStatus = "No remaining steps to skip.";
+            LiveRunStatus = "[PAUSED] No remaining steps to skip.";
             return;
         }
 
@@ -1558,12 +1565,12 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         {
             var skipped = _liveRunState.Steps.Count(step => string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase));
             LiveRunStatus = skipped > 0
-                ? $"Live run complete with {skipped} skipped step(s). Review skipped items before sign-off."
-                : "Live run complete. All steps finished.";
+                ? $"[COMPLETED] Live run complete with {skipped} skipped step(s). Review skipped items before sign-off."
+                : "[COMPLETED] Live run complete. All steps finished.";
         }
         else
         {
-            LiveRunStatus = $"Step skipped: {nextStep.Description}";
+            LiveRunStatus = $"[PAUSED] Step skipped: {nextStep.Description}";
         }
         UpdateLiveRunProgress();
     }
@@ -1583,7 +1590,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         LiveRunSteps.Clear();
         LiveRunSummarySteps.Clear();
         LiveRunLogPath = string.Empty;
-        LiveRunStatus = "Ready for a new user onboarding run.";
+        LiveRunStatus = "[READY] Ready for a new user onboarding run.";
         UpdateLiveRunProgress();
         SignInPhaseMessage = "Idle";
     }
@@ -1597,7 +1604,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
     {
         if (_currentRequest is null)
         {
-            LiveRunStatus = "No parsed request available.";
+            LiveRunStatus = "[FAILED] No parsed request available.";
             return;
         }
 
@@ -1614,7 +1621,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         var remainingAtStart = _liveRunState.Steps.Count(step => !step.IsCompleted);
         if (remainingAtStart == 0)
         {
-            LiveRunStatus = "Live run complete. All steps finished.";
+            LiveRunStatus = "[COMPLETED] Live run complete. All steps finished.";
             UpdateLiveRunProgress();
             return;
         }
@@ -1643,7 +1650,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
 
                 var done = _liveRunState.Steps.Count(step => step.IsCompleted);
                 SignInPhaseMessage = $"Running step {done + 1}/{total}: {nextStep.Description}";
-                LiveRunStatus = $"Run-all in progress ({done + 1}/{total}): {nextStep.Description}";
+                LiveRunStatus = $"[RUNNING] Run-all ({done + 1}/{total}): {nextStep.Description}";
 
                 nextStep.Status = "InProgress";
                 nextStep.UpdatedUtc = DateTimeOffset.UtcNow;
@@ -1676,8 +1683,8 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
 
             var skipped = _liveRunState.Steps.Count(step => string.Equals(step.Status, "Skipped", StringComparison.OrdinalIgnoreCase));
             LiveRunStatus = skipped > 0
-                ? $"Run-all complete. {skipped} step(s) skipped ({autoSkippedFailures} due to failures)."
-                : "Run-all complete. All steps finished.";
+                ? $"[COMPLETED] Run-all complete. {skipped} step(s) skipped ({autoSkippedFailures} due to failures)."
+                : "[COMPLETED] Run-all complete. All steps finished.";
         }
         finally
         {
@@ -1692,13 +1699,13 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
     {
         if (_liveRunState is null || _liveRunState.Steps.Count == 0)
         {
-            LiveRunStatus = "No live run data available to summarize.";
+            LiveRunStatus = "[FAILED] No live run data available to summarize.";
             return;
         }
 
         if (_liveRunState.Steps.Any(step => !step.IsCompleted))
         {
-            LiveRunStatus = "All steps must be completed or skipped before finishing.";
+            LiveRunStatus = "[PAUSED] All steps must be completed or skipped before finishing.";
             return;
         }
 
@@ -1749,7 +1756,7 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
         SaveLiveRunState();
         LiveRunLogPath = GetLiveRunLogPath(_liveRunState.UserUpn);
         LogLiveRunEvent("LiveRunReset", null, "Operator reset safe live run checkpoint.");
-        LiveRunStatus = "Live run reset. Ready to execute from step 1.";
+        LiveRunStatus = "[READY] Live run reset. Ready to execute from step 1.";
         UpdateLiveRunProgress();
     }
 
@@ -2457,6 +2464,77 @@ Write-Host "Done. You can close this window and continue in the app." -Foregroun
             && !string.IsNullOrWhiteSpace(uri.Host);
     }
 
+    private static string ResolveAppVersion()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return "unknown";
+            }
+
+            var productVersion = FileVersionInfo.GetVersionInfo(processPath).ProductVersion;
+            return string.IsNullOrWhiteSpace(productVersion) ? "unknown" : productVersion;
+        }
+        catch
+        {
+            return "unknown";
+        }
+    }
+
+    private static ActionableError BuildActionableError(OperationArea area, string rawDetail)
+    {
+        var detail = Compact(rawDetail);
+        var lower = rawDetail.ToLowerInvariant();
+
+        if (lower.Contains("consent") || lower.Contains("unauthorized") || lower.Contains("forbidden"))
+        {
+            return new ActionableError(
+                area,
+                "Permission or admin consent issue",
+                $"Failed because required permissions are missing or not yet consented. Detail: {detail}",
+                "Complete admin consent for the customer app, then retry.");
+        }
+
+        if (lower.Contains("certificate") || lower.Contains("thumbprint") || lower.Contains("private key"))
+        {
+            return new ActionableError(
+                area,
+                "Certificate configuration issue",
+                $"Failed because the app certificate was missing, invalid, or unavailable. Detail: {detail}",
+                "Re-run setup to regenerate/import certificate, then retry.");
+        }
+
+        if (lower.Contains("timeout") || lower.Contains("temporarily unavailable") || lower.Contains("rate"))
+        {
+            return new ActionableError(
+                area,
+                "Temporary service issue",
+                $"Operation failed due to a temporary service/network condition. Detail: {detail}",
+                "Wait a moment and retry. If it repeats, run individual steps to isolate the failing service.");
+        }
+
+        return new ActionableError(
+            area,
+            "Unexpected runtime issue",
+            $"Operation failed with an unexpected error. Detail: {detail}",
+            "Retry once. If it fails again, verify customer settings and permissions before continuing.");
+    }
+
+    private void ReportActionableSetupFailure(string rawDetail)
+    {
+        var error = BuildActionableError(OperationArea.SetupCustomerApp, rawDetail);
+        SignInPhaseMessage = "Customer app setup failed";
+        StatusMessage = $"{error.Title}. {error.UserMessage} Next: {error.NextAction}";
+    }
+
+    private string BuildLiveRunFailureDetail(string rawDetail)
+    {
+        var error = BuildActionableError(OperationArea.LiveRun, rawDetail);
+        return $"{error.UserMessage} Next: {error.NextAction}";
+    }
+
     private void AddPreflight(string name, bool pass, string detail)
     {
         PreflightChecks.Add(new PreflightCheckItem(pass ? "PASS" : "FAIL", name, detail, pass));
@@ -2518,6 +2596,13 @@ public enum WizardStep
 }
 
 public sealed record PreflightCheckItem(string Status, string Check, string Detail, bool IsPass);
+public enum OperationArea
+{
+    SetupCustomerApp,
+    LiveRun
+}
+
+public sealed record ActionableError(OperationArea Area, string Title, string UserMessage, string NextAction);
 
 public sealed class DirectoryUserMatchChoice : INotifyPropertyChanged
 {
