@@ -119,9 +119,12 @@ internal sealed class InstallerForm : Form
                 try { process.Kill(entireProcessTree: true); } catch { }
             }
 
-            UpdateStatus("Copying updated files...", 84);
+            UpdateStatus("Removing previous version...", 82);
+            RemoveExistingInstall(currentDir);
+
+            UpdateStatus("Copying updated files...", 86);
             Directory.CreateDirectory(currentDir);
-            var changedFiles = CopyChangedFiles(sourceRoot, currentDir);
+            var installedFiles = CopyAllFiles(sourceRoot, currentDir);
 
             if (!File.Exists(installedExe))
             {
@@ -138,7 +141,7 @@ internal sealed class InstallerForm : Form
 
             UpdateStatus("Installation complete.", 100);
             MessageBox.Show(
-                $"NewUserAutomation has been installed/updated successfully.\n\nVersion: {GetProductVersionSafe(installedExe)}\nChanged files: {changedFiles}\n\nLocation:\n{installedExe}",
+                $"NewUserAutomation has been installed/updated successfully.\n\nVersion: {GetProductVersionSafe(installedExe)}\nInstalled files: {installedFiles}\n\nLocation:\n{installedExe}",
                 "Install Complete",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -233,9 +236,9 @@ internal sealed class InstallerForm : Form
         _progress.Value = Math.Clamp(percent, 0, 100);
     }
 
-    private static int CopyChangedFiles(string sourceDir, string destinationDir)
+    private static int CopyAllFiles(string sourceDir, string destinationDir)
     {
-        var changed = 0;
+        var copied = 0;
         foreach (var directory in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
         {
             var targetDir = directory.Replace(sourceDir, destinationDir, StringComparison.OrdinalIgnoreCase);
@@ -246,35 +249,36 @@ internal sealed class InstallerForm : Form
         {
             var targetFile = file.Replace(sourceDir, destinationDir, StringComparison.OrdinalIgnoreCase);
             Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
-            if (!NeedsCopy(file, targetFile))
-            {
-                continue;
-            }
-
             File.Copy(file, targetFile, overwrite: true);
-            changed++;
+            copied++;
         }
 
-        return changed;
+        return copied;
     }
 
-    private static bool NeedsCopy(string sourceFile, string destinationFile)
+    private static void RemoveExistingInstall(string currentDir)
     {
-        if (!File.Exists(destinationFile))
+        if (!Directory.Exists(currentDir))
         {
-            return true;
+            return;
         }
 
-        var srcInfo = new FileInfo(sourceFile);
-        var dstInfo = new FileInfo(destinationFile);
-        if (srcInfo.Length != dstInfo.Length)
+        // Retry to handle transient file locks immediately after process shutdown.
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            return true;
+            try
+            {
+                Directory.Delete(currentDir, recursive: true);
+                return;
+            }
+            catch when (attempt < maxAttempts)
+            {
+                Thread.Sleep(500);
+            }
         }
 
-        // 2-second tolerance for zip timestamp granularity.
-        var delta = (srcInfo.LastWriteTimeUtc - dstInfo.LastWriteTimeUtc).Duration();
-        return delta > TimeSpan.FromSeconds(2);
+        Directory.Delete(currentDir, recursive: true);
     }
 
     private static bool IsSameProductVersion(string installedExe, string stagedExe)

@@ -202,8 +202,14 @@ try {
     Write-Step "Stopping running app (if open)"
     Get-Process -Name ([System.IO.Path]::GetFileNameWithoutExtension($ExeName)) -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+    Write-Step "Removing previous install at $currentDir"
+    Show-InstallProgress -Activity "Installing $AppName" -Status "Removing previous version..." -Percent 78
+    if (Test-Path $currentDir) {
+        Remove-Item -Path $currentDir -Recurse -Force
+    }
+
     Write-Step "Installing to $currentDir"
-    Show-InstallProgress -Activity "Installing $AppName" -Status "Copying files..." -Percent 80
+    Show-InstallProgress -Activity "Installing $AppName" -Status "Copying files..." -Percent 85
     New-Item -ItemType Directory -Path $currentDir -Force | Out-Null
     Copy-Item -Path (Join-Path $sourceRoot "*") -Destination $currentDir -Recurse -Force
 
