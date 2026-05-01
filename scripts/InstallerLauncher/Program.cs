@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Principal;
 using System.Text.Json;
@@ -9,10 +10,11 @@ using System.Windows.Forms;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        var relaunchAfterInstall = args.Any(a => string.Equals(a, "--relaunch", StringComparison.OrdinalIgnoreCase));
         ApplicationConfiguration.Initialize();
-        Application.Run(new InstallerForm());
+        Application.Run(new InstallerForm(relaunchAfterInstall));
     }
 }
 
@@ -25,13 +27,15 @@ internal sealed class InstallerForm : Form
     private const string ZipAssetName = "NewUserAutomation-win-x64.zip";
     private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
     private readonly string _installerVersion = ResolveInstallerVersion();
+    private readonly bool _relaunchAfterInstall;
 
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Height = 22, Dock = DockStyle.Bottom };
     private readonly Label _status = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12), AutoEllipsis = true };
     private readonly HttpClient _httpClient = new();
 
-    public InstallerForm()
+    public InstallerForm(bool relaunchAfterInstall)
     {
+        _relaunchAfterInstall = relaunchAfterInstall;
         Text = $"Installing NewUserAutomation (Installer {_installerVersion})";
         Width = 560;
         Height = 140;
@@ -68,22 +72,9 @@ internal sealed class InstallerForm : Form
             UpdateStatus("Checking latest release manifest...", 8);
             var package = await ResolvePackageAsync();
             var installedExe = Path.Combine(currentDir, AppExeName);
-            var installedVersion = GetProductVersionSafe(installedExe);
             if (!string.IsNullOrWhiteSpace(package.Version))
             {
-                UpdateStatus($"Installed version: {DisplayVersion(installedVersion)} | Latest release: {package.Version}", 9);
-            }
-            if (!string.IsNullOrWhiteSpace(package.Version)
-                && string.Equals(installedVersion, package.Version, StringComparison.OrdinalIgnoreCase))
-            {
-                UpdateStatus("Already up to date.", 100);
-                MessageBox.Show(
-                    $"NewUserAutomation is already on the latest version.\n\nVersion: {installedVersion}",
-                    "No Update Needed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-                Close();
-                return;
+                UpdateStatus($"Latest release: {package.Version}", 9);
             }
 
             await DownloadWithProgressAsync(package.ZipUrl, zipPath);
@@ -99,19 +90,6 @@ internal sealed class InstallerForm : Form
             }
 
             var sourceRoot = Path.GetDirectoryName(exePathInExtract)!;
-            var stagedExe = Path.Combine(sourceRoot, AppExeName);
-
-            if (File.Exists(installedExe) && IsSameProductVersion(installedExe, stagedExe))
-            {
-                UpdateStatus("Already up to date.", 100);
-                MessageBox.Show(
-                    $"NewUserAutomation is already on the latest version.\n\nVersion: {GetProductVersionSafe(stagedExe)}",
-                    "No Update Needed",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-                Close();
-                return;
-            }
 
             UpdateStatus("Stopping running app (if open)...", 78);
             foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(AppExeName)))
@@ -145,6 +123,12 @@ internal sealed class InstallerForm : Form
                 "Install Complete",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+
+            if (_relaunchAfterInstall)
+            {
+                TryRelaunchInstalledApp(installedExe, currentDir);
+            }
+
             Close();
         }
         catch (Exception ex)
@@ -281,18 +265,6 @@ internal sealed class InstallerForm : Form
         Directory.Delete(currentDir, recursive: true);
     }
 
-    private static bool IsSameProductVersion(string installedExe, string stagedExe)
-    {
-        var a = GetProductVersionSafe(installedExe);
-        var b = GetProductVersionSafe(stagedExe);
-        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
-        {
-            return false;
-        }
-
-        return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-    }
-
     private static string GetProductVersionSafe(string exePath)
     {
         try
@@ -317,9 +289,6 @@ internal sealed class InstallerForm : Form
             return "unknown";
         }
     }
-
-    private static string DisplayVersion(string version) =>
-        string.IsNullOrWhiteSpace(version) ? "not installed" : version;
 
     private static void CreateShortcut(string shortcutPath, string targetPath, string workingDirectory)
     {
@@ -364,6 +333,23 @@ internal sealed class InstallerForm : Form
             Verb = "runas"
         };
         Process.Start(psi);
+    }
+
+    private static void TryRelaunchInstalledApp(string installedExe, string workingDirectory)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = installedExe,
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            // No-op: install succeeded; relaunch failure should not be fatal.
+        }
     }
 }
 

@@ -2,6 +2,7 @@ param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
     [string]$OutputRoot = "dist",
+    [string]$Version,
     [switch]$ZipOutput
 )
 
@@ -15,13 +16,22 @@ $publishName = "NewUserAutomation-$Runtime"
 $publishDir = Join-Path $repoRoot (Join-Path $OutputRoot $publishName)
 
 Write-Host "Publishing $projectPath -> $publishDir" -ForegroundColor Cyan
-dotnet publish $projectPath `
-  -c $Configuration `
-  -r $Runtime `
-  --self-contained true `
-  -p:PublishSingleFile=true `
-  -p:IncludeNativeLibrariesForSelfExtract=true `
-  -o $publishDir
+$publishArgs = @(
+  "publish", $projectPath,
+  "-c", $Configuration,
+  "-r", $Runtime,
+  "--self-contained", "true",
+  "-p:PublishSingleFile=true",
+  "-p:IncludeNativeLibrariesForSelfExtract=true",
+  "-o", $publishDir
+)
+
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    Write-Host "Using release version: $Version" -ForegroundColor Cyan
+    $publishArgs += "-p:Version=$Version"
+}
+
+dotnet @publishArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed."

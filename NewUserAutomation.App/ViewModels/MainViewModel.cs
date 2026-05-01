@@ -401,6 +401,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         get => _liveRunProgressPercent;
         private set => Set(ref _liveRunProgressPercent, value);
     }
+    public string AppVersion => _appVersion;
     public string AppVersionLabel => $"App version: {_appVersion}";
     public bool ShowParserDiagnosticsDetails
     {

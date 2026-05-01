@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
+using NewUserAutomation.App.Services;
 using NewUserAutomation.App.ViewModels;
 
 namespace NewUserAutomation.App;
@@ -10,12 +11,65 @@ namespace NewUserAutomation.App;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private readonly AppUpdateService _updateService = new();
+    private bool _startupUpdateCheckCompleted;
 
     public MainWindow()
     {
         InitializeComponent();
         _viewModel = new MainViewModel();
         DataContext = _viewModel;
+        Loaded += OnWindowLoaded;
+    }
+
+    private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_startupUpdateCheckCompleted)
+        {
+            return;
+        }
+
+        _startupUpdateCheckCompleted = true;
+
+        try
+        {
+            var update = await _updateService.CheckForUpdateAsync(_viewModel.AppVersion);
+            if (!update.IsUpdateAvailable)
+            {
+                return;
+            }
+
+            var prompt = MessageBox.Show(
+                $"A newer version is available.\n\nCurrent: {update.CurrentVersion}\nLatest: {update.LatestVersion}\n\nInstall now? The app will close and relaunch after install.",
+                "Update Available",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (prompt != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var installerPath = await _updateService.DownloadInstallerAsync(update.InstallerDownloadUrl);
+            if (!AppUpdateService.TryLaunchInstaller(installerPath, relaunchAfterInstall: true))
+            {
+                MessageBox.Show(
+                    "Could not launch the downloaded installer.",
+                    "Update Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Update check failed.\n\n{ex.Message}",
+                "Update Check",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void OnBrowseFileClick(object sender, RoutedEventArgs e)
